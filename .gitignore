@@ -1,0 +1,61 @@
+# Byte-compiled / cache
+pycache/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+.env
+.env.*
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Testing and tooling caches
+.pytest_cache/
+__pycahce__/
+.mypy_cache/
+.pytype/
+.ruff_cache/
+.tox/
+.nox/
+.coverage*
+htmlcov/
+
+# Packaging / build
+build/
+dist/
+*.egg-info/
+.eggs/
+wheels/
+*.egg
+
+# Editors / OS
+.idea/
+.vscode/
+.cursor/
+.claude/
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Logs
+logs/
+*.log
+
+# Data / models
+data/
+models/
+checkpoints/
+*.pt
+
+# PyTorch / training artifacts
+lightning_logs/
+.glove_cache/
+
+# Misc
+*.swp
+*.swo
