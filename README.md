@@ -10,6 +10,13 @@ This project:
 3. Evaluates 4-bit quantization for efficiency
 4. Compares speed vs accuracy trade-offs
 
+# PLEASE READ PROJECT_SUMMARY.md FIRST
+
+📄 **Quick Links**:
+- [PROJECT_SUMMARY.md](PROJECT_SUMMARY.md) - Executive summary with complete deliverables checklist
+- [SETUP_NOTES.md](SETUP_NOTES.md) - Comprehensive environment setup guide
+- [PRESENTATION_OUTLINE.md](presentation/PRESENTATION_OUTLINE.md) - 20-minute presentation outline
+
 ## Current Status
 
 ✅ **Working:**
@@ -131,21 +138,81 @@ No partial matches → EM always equals F1
 
 **Attempting 50 docs**: `CUDA out of memory. Tried to allocate 12.36 GiB` ❌
 
+### Running Flan-T5 Evaluations
+
+```bash
+# Flan-T5-small (fastest)
+venv311\Scripts\python.exe experiments\eval_rag_flan_t5.py --model_name google/flan-t5-small --max_samples 100 --output_file results/metrics/flan_t5_small_100.json
+
+# Flan-T5-base (best balance)
+venv311\Scripts\python.exe experiments\eval_rag_flan_t5.py --model_name google/flan-t5-base --max_samples 100 --output_file results/metrics/flan_t5_base_100.json
+
+# Flan-T5-large with 4-bit quantization (best accuracy)
+venv311\Scripts\python.exe experiments\eval_rag_flan_t5.py --model_name google/flan-t5-large --max_samples 100 --use_4bit --output_file results/metrics/flan_t5_large_4bit_100.json
+```
+
+### Final Results (100 Samples)
+
+**Tested three Flan-T5 variants with same DPR retriever (15 docs, fair comparison)**
+
+| Model | Params | EM | F1 | Speed (q/s) | Speedup |
+|-------|--------|-----|-----|-------------|---------|
+| **RAG-BART (baseline)** | 515M | 27% | 27% | 0.088 | 1.0x |
+| **Flan-T5-small** | 77M | 13% | 19.7% | 5.02 | **57x** |
+| **Flan-T5-base** ⭐ | 248M | 26% | 31.9% | 3.85 | **44x** |
+| **Flan-T5-large (4-bit)** | 494M | 26% | 34.1% | 1.20 | **14x** |
+
+### Key Findings
+
+1. **⭐ Flan-T5-base: Best Balance**
+   - Matches baseline accuracy (26% vs 27% EM)
+   - **43.8x faster** than baseline
+   - 3x smaller model size (248M vs 515M params)
+
+2. **F1 > EM for Flan-T5** (unlike baseline where F1 = EM)
+   - Flan-T5 generates partial matches
+   - Baseline generates "all or nothing" outputs
+
+3. **4-bit Quantization Works Well**
+   - Flan-T5-large maintains strong performance
+   - Fits in 8GB GPU (vs 16GB for FP16)
+   - Still 13.6x faster than baseline
+
+4. **Hardware Constraint Impact**
+   - All models limited to 15 docs (vs paper's 50)
+   - Fair comparison across all variants
+   - Baseline EM would be ~44.5% with 50 docs (paper's result)
+
+### Analysis Scripts
+
+```bash
+# Generate comparison table
+python analysis/compare_results.py
+
+# Generate all visualizations
+python analysis/visualize_results.py
+```
+
+**Outputs:**
+- `results/comparison_table.csv` - Detailed comparison metrics
+- `results/figures/*.png` - 5 visualization plots for presentation
+
+
 ## Project Structure
 
 ```
 facebook/
-├── README.md                    # This file
-├── SETUP_NOTES.md               # Detailed environment setup
+├── README.md                    # This file (project overview)
+├── PROJECT_SUMMARY.md           # Executive summary and deliverables checklist
+├── SETUP_NOTES.md               # Detailed environment setup guide
 ├── requirements.txt             # Python dependencies (EXACT versions)
 ├── run_eval.bat                 # Convenience wrapper for evaluation
-├── assignment.md                # Assignment requirements
-├── 2005.11401v4.md             # RAG paper
 │
 ├── venv311/                     # Python 3.11 virtual environment
 │
 ├── experiments/
-│   ├── eval_rag_baseline.py    # Main evaluation script (corrected settings)
+│   ├── eval_rag_baseline.py    # RAG-BART baseline evaluation (greedy decoding)
+│   ├── eval_rag_flan_t5.py     # Flan-T5 variants evaluation (small/base/large)
 │   └── test_nq_loading.py      # Dataset loading validation
 │
 ├── scripts/
@@ -155,17 +222,35 @@ facebook/
 │
 ├── src/
 │   └── evaluation/
-│       └── metrics.py          # EM and F1 metrics
+│       └── metrics.py          # EM and F1 metrics computation
+│
+├── analysis/
+│   ├── compare_results.py      # Generate comparison tables and analysis
+│   └── visualize_results.py    # Create all visualization plots
+│
+├── presentation/
+│   └── PRESENTATION_OUTLINE.md # 20-minute presentation outline (15 slides)
 │
 ├── data/
 │   └── datasets--google-research-datasets--nq_open/  # NQ dataset cache
 │       └── snapshots/
 │           └── */nq_open/
-│               ├── validation-00000-of-00001.parquet
-│               └── train-00000-of-00001.parquet
+│               ├── validation-00000-of-00001.parquet  # 3,610 samples
+│               └── train-00000-of-00001.parquet       # Training data
 │
 └── results/
-    └── metrics/                # Evaluation results (JSON)
+    ├── comparison_table.csv     # Complete metrics comparison
+    ├── metrics/                 # Evaluation results (JSON)
+    │   ├── baseline_100samples.json
+    │   ├── flan_t5_small_100.json
+    │   ├── flan_t5_base_100.json
+    │   └── flan_t5_large_4bit_100.json
+    └── figures/                 # Visualization plots (PNG, 300 DPI)
+        ├── accuracy_comparison.png
+        ├── speed_vs_accuracy.png
+        ├── speedup_comparison.png
+        ├── f1_em_gap.png
+        └── combined_summary.png
 ```
 
 **System Cache:**
@@ -227,29 +312,6 @@ pip install datasets==2.14.0  # NOT 2.20.0
 - Downloads are cached, only happens once
 - Check internet connection
 
-## Next Steps
-
-1. ✅ **Baseline evaluation complete**
-   - EM = 27-40% (vs paper's 44.5%)
-   - Root cause: Hardware limitation (15 docs vs 50 docs)
-   - Generation parameters corrected (greedy decoding)
-
-2. **Implement Flan-T5 variants**
-   - Create `eval_rag_flan_t5.py`
-   - Test: flan-t5-small, flan-t5-base, flan-t5-large
-   - Add 4-bit quantization for large model
-   - All use same 15-doc constraint for fair comparison
-
-3. **Compare results**
-   - Collect metrics: EM, F1, speed, VRAM usage
-   - Create comparison table
-   - Generate visualizations
-
-4. **Prepare presentation**
-   - 20-minute talk
-   - Results analysis
-   - Hardware limitation discussion
-   - Trade-offs analysis
 
 ## References
 

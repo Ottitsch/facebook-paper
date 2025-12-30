@@ -149,22 +149,6 @@ venv311\Scripts\python.exe experiments\eval_rag_baseline.py --max_samples 10
 # - Results printed at end
 ```
 
-## Import Gotchas
-
-RAG classes MUST be imported directly from module files (not via lazy-loaded `__init__.py`):
-
-```python
-# ✅ CORRECT imports
-from transformers.models.rag.modeling_rag import RagSequenceForGeneration
-from transformers.models.rag.tokenization_rag import RagTokenizer
-from transformers.models.rag.retrieval_rag import RagRetriever
-
-# ❌ WRONG imports (will fail)
-from transformers import RagSequenceForGeneration  # Lazy loading breaks
-from transformers import RagTokenizer              # Lazy loading breaks
-from transformers import RagRetriever              # Lazy loading breaks
-```
-
 ## First Run Expectations
 
 **Wikipedia Index Download:**
@@ -204,6 +188,90 @@ from transformers import RagRetriever              # Lazy loading breaks
 - With FP16: ~0.09 questions/second (batch_size=4)
 - With FP32: ~0.06 questions/second (batch_size=4)
 - CPU only: ~0.01 questions/second (very slow)
+
+
+# Running Experiments
+
+### Baseline RAG-BART Evaluation
+
+**Basic evaluation:**
+```bash
+venv311\Scripts\python.exe experiments\eval_rag_baseline.py --max_samples 100 --batch_size 4
+```
+
+**Save results:**
+```bash
+venv311\Scripts\python.exe experiments\eval_rag_baseline.py --max_samples 100 --output_file results/metrics/baseline_100.json
+```
+
+**Adjust for GPU memory:**
+```bash
+# Low VRAM (4-6GB)
+venv311\Scripts\python.exe experiments\eval_rag_baseline.py --max_samples 100 --batch_size 1 --no_fp16
+
+# Medium VRAM (8GB) - default
+venv311\Scripts\python.exe experiments\eval_rag_baseline.py --max_samples 100 --batch_size 4
+
+# High VRAM (12GB+)
+venv311\Scripts\python.exe experiments\eval_rag_baseline.py --max_samples 100 --batch_size 8
+```
+
+### Flan-T5 Variant Evaluations
+
+**Flan-T5-small (fastest, 77M params):**
+```bash
+venv311\Scripts\python.exe experiments\eval_rag_flan_t5.py --model_name google/flan-t5-small --max_samples 100 --output_file results/metrics/flan_t5_small_100.json
+```
+
+**Flan-T5-base (best balance, 248M params):**
+```bash
+venv311\Scripts\python.exe experiments\eval_rag_flan_t5.py --model_name google/flan-t5-base --max_samples 100 --output_file results/metrics/flan_t5_base_100.json
+```
+
+**Flan-T5-large with 4-bit quantization (best accuracy, 494M params):**
+```bash
+venv311\Scripts\python.exe experiments\eval_rag_flan_t5.py --model_name google/flan-t5-large --max_samples 100 --use_4bit --output_file results/metrics/flan_t5_large_4bit_100.json
+```
+
+**Quick test (10 samples) for any variant:**
+```bash
+venv311\Scripts\python.exe experiments\eval_rag_flan_t5.py --model_name google/flan-t5-base --max_samples 10
+```
+
+### Analysis and Visualization
+
+**Generate comparison table:**
+```bash
+venv311\Scripts\python.exe analysis\compare_results.py
+```
+
+**Generate all plots:**
+```bash
+venv311\Scripts\python.exe analysis\visualize_results.py
+```
+
+**Outputs:**
+- `results/comparison_table.csv` - Detailed metrics comparison
+- `results/figures/*.png` - 5 visualization plots (300 DPI)
+
+
+
+
+## Import Gotchas
+
+RAG classes MUST be imported directly from module files (not via lazy-loaded `__init__.py`):
+
+```python
+# ✅ CORRECT imports
+from transformers.models.rag.modeling_rag import RagSequenceForGeneration
+from transformers.models.rag.tokenization_rag import RagTokenizer
+from transformers.models.rag.retrieval_rag import RagRetriever
+
+# ❌ WRONG imports (will fail)
+from transformers import RagSequenceForGeneration  # Lazy loading breaks
+from transformers import RagTokenizer              # Lazy loading breaks
+from transformers import RagRetriever              # Lazy loading breaks
+```
 
 ## Issues Encountered & Solutions
 
@@ -304,75 +372,3 @@ rm -rf ~/.cache/huggingface/  # Linux/Mac
 rmdir /s ~/.cache/huggingface/  # Windows
 ```
 
-## Running Experiments
-
-**Basic evaluation:**
-```bash
-venv311\Scripts\python.exe experiments\eval_rag_baseline.py --max_samples 100 --batch_size 4
-```
-
-**Save results:**
-```bash
-venv311\Scripts\python.exe experiments\eval_rag_baseline.py --max_samples 100 --output_file results/metrics/baseline_100.json
-```
-
-**Adjust for GPU memory:**
-```bash
-# Low VRAM (4-6GB)
-venv311\Scripts\python.exe experiments\eval_rag_baseline.py --max_samples 100 --batch_size 1 --no_fp16
-
-# Medium VRAM (8GB) - default
-venv311\Scripts\python.exe experiments\eval_rag_baseline.py --max_samples 100 --batch_size 4
-
-# High VRAM (12GB+)
-venv311\Scripts\python.exe experiments\eval_rag_baseline.py --max_samples 100 --batch_size 8
-```
-
-## Performance Investigation Summary
-
-✅ **Baseline Evaluation Complete**
-
-**Results**:
-- EM: 27-40% on 100-200 samples (vs paper's 44.5%)
-- F1: Equal to EM (27-40%)
-- Root cause identified: Hardware limitation
-
-**Key Findings**:
-
-1. **EM = F1 Mystery Solved**:
-   - Model generates either perfect answers (EM=1, F1=1) OR complete garbage (EM=0, F1=0)
-   - No partial matches → EM always equals F1
-   - Garbage examples: " the", "," (normalize to empty strings)
-
-2. **Hardware Bottleneck**:
-   - **Paper uses**: 50 retrieved documents (requires 12+ GB VRAM)
-   - **We use**: 15 retrieved documents (fits in 8GB GPU)
-   - Attempting 50 docs → `CUDA out of memory` error
-
-3. **Generation Parameters Corrected**:
-   - ✅ Switched from beam search to greedy decoding (as per paper)
-   - ✅ Using exact paper settings where hardware permits
-   - ❌ Cannot use 50 docs due to GPU memory constraint
-
-**Performance Gap Analysis**:
-- Paper's 44.5% EM achieved with 50 docs on 16GB+ GPUs
-- Our 27-40% EM with 15 docs on 8GB GPU
-- Gap primarily due to retrieval context limitation (15 vs 50 docs)
-
-## Next Steps
-
-1. ✅ Environment configured correctly (Python 3.11, exact dependencies)
-2. ✅ Baseline evaluation and analysis complete
-3. ✅ Performance bottleneck identified and documented
-4. ⏳ **Next**: Implement Flan-T5 variants (small/base/large)
-5. ⏳ Run comparison experiments (all use same 15-doc constraint for fairness)
-6. ⏳ Create visualizations and comparison tables
-7. ⏳ Prepare 20-minute presentation with hardware limitation discussion
-
-## Important Notes for Future Work
-
-- All Flan-T5 experiments will use 15 docs (same hardware constraint)
-- This ensures fair comparison between models
-- Document hardware limitation prominently in presentation
-- Consider discussing what results would look like with 16GB+ GPU
-- Focus on relative performance differences between models, not absolute EM scores
