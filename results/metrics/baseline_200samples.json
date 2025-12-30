@@ -1,0 +1,22 @@
+{
+  "model_name": "facebook/rag-sequence-nq",
+  "split": "validation",
+  "metrics": {
+    "exact_match": 30.0,
+    "f1": 30.0,
+    "num_examples": 200,
+    "total_time": 2275.807357311249,
+    "questions_per_second": 0.08788090053293873
+  },
+  "args": {
+    "model_name": "facebook/rag-sequence-nq",
+    "split": "validation",
+    "max_samples": 200,
+    "batch_size": 4,
+    "n_docs": 15,
+    "max_length": 50,
+    "output_file": "results\\metrics\\baseline_200samples.json",
+    "no_fp16": false,
+    "use_dummy_index": false
+  }
+}
