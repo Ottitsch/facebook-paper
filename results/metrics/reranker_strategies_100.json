@@ -1,0 +1,30 @@
+{
+  "model": "google/flan-t5-base",
+  "reranker_strategies": {
+    "basic": {
+      "exact_match": 21.0,
+      "f1": 30.617272407425858,
+      "speed": 0.9820095635554518,
+      "total_time": 101.83200216293335,
+      "avg_retrieval_time_ms": 176.46310567855835,
+      "avg_reranking_time_ms": 393.90483379364014
+    },
+    "enhanced": {
+      "exact_match": 26.0,
+      "f1": 32.95935960591133,
+      "speed": 1.0951404349489577,
+      "total_time": 91.31248998641968,
+      "avg_retrieval_time_ms": 109.77089881896973,
+      "avg_reranking_time_ms": 399.0471148490906
+    },
+    "diversity": {
+      "exact_match": 24.0,
+      "f1": 34.288034554151494,
+      "speed": 0.7674281601620585,
+      "total_time": 130.30535650253296,
+      "avg_retrieval_time_ms": 119.40654516220093,
+      "avg_reranking_time_ms": 755.5516815185547
+    }
+  },
+  "timestamp": "2026-01-22T10:28:42.506436"
+}

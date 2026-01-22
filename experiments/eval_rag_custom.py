@@ -5,17 +5,17 @@ This bypasses the datasets library issues and uses downloaded data.
 
 import argparse
 import json
-import time
 import sys
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-import torch
 import numpy as np
-from transformers import AutoTokenizer, AutoModel, AutoModelForSeq2SeqLM
-from tqdm import tqdm
 import pyarrow as pa
+import torch
+from tqdm import tqdm
+from transformers import AutoModel, AutoModelForSeq2SeqLM, AutoTokenizer
 
 from src.evaluation.metrics import compute_metrics
 
@@ -204,7 +204,8 @@ def load_models(encoder_name="facebook/dpr-ctx_encoder-single-nq-base",
                 generator_name="facebook/bart-large",
                 use_fp16=True):
     """Load encoder and generator models."""
-    from transformers import DPRContextEncoder, DPRQuestionEncoder, DPRContextEncoderTokenizer, DPRQuestionEncoderTokenizer
+    from transformers import (DPRContextEncoder, DPRContextEncoderTokenizer,
+                              DPRQuestionEncoder, DPRQuestionEncoderTokenizer)
 
     print(f"Loading models...")
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -400,36 +401,46 @@ def main():
 
     args = parser.parse_args()
 
-    print("="*60)
+    print("\n" + "="*60)
     print("CUSTOM RAG EVALUATION")
-    print("Using your cached wiki_dpr data (74GB)")
     print("="*60)
 
     # Load models
+    print("[1/4] Loading encoder and generator models...")
     encoder_model, encoder_tokenizer, generator, generator_tokenizer = load_models(
         encoder_name=args.encoder,
         generator_name=args.generator,
         use_fp16=not args.no_fp16
     )
+    print("      ✓ Models loaded")
 
     # Load Wikipedia passages from cache
+    print("[2/4] Loading Wikipedia passages from cache...")
     passages = load_wiki_dpr_from_cache(
         cache_dir=args.cache_dir,
         max_passages=args.max_passages
     )
+    print(f"      ✓ Passages loaded ({len(passages):,} passages)")
 
     # Build FAISS index
+    print("[3/4] Building FAISS index...")
     import faiss
     index = build_faiss_index(passages, encoder_model, encoder_tokenizer, batch_size=args.batch_size)
+    print("      ✓ Index built")
 
     # Load evaluation dataset
+    print("[4/4] Loading evaluation dataset...")
     dataset = load_evaluation_dataset(
         dataset_name=args.dataset,
         split=args.split,
         max_samples=args.max_samples
     )
+    print(f"      ✓ Dataset loaded ({len(dataset)} samples)")
+    print("="*60 + "\n")
 
     # Evaluate
+    print("RUNNING EVALUATION")
+    print("="*60)
     results = evaluate_rag(
         passages=passages,
         index=index,
@@ -443,7 +454,7 @@ def main():
     )
 
     # Print results
-    print("\n" + "="*60)
+    print("="*60)
     print("RAG EVALUATION RESULTS")
     print("="*60)
     print(f"Generator: {args.generator}")
@@ -459,6 +470,7 @@ def main():
     print(f"Total time: {results['metrics']['total_time']:.2f}s")
     print(f"Speed: {results['metrics']['questions_per_second']:.2f} questions/second")
     print("="*60)
+    print("✓ Evaluation completed successfully\n")
 
     # Save results
     if args.output_file:

@@ -1,0 +1,17 @@
+{
+  "args": {
+    "model_name": "google/flan-t5-base",
+    "prompt_type": "standard",
+    "max_samples": 100,
+    "output_file": "results/metrics/t5_prompt_100.json",
+    "n_docs": 15,
+    "use_4bit": false
+  },
+  "metrics": {
+    "exact_match": 0.0,
+    "f1": 0.0,
+    "num_examples": 100,
+    "total_time": 52.97563123703003,
+    "questions_per_second": 1.8876603763826392
+  }
+}

@@ -5,19 +5,19 @@ Uses DPR retriever with Flan-T5 generator (small/base/large).
 
 import argparse
 import json
-import time
 import sys
+import time
 from pathlib import Path
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-import torch
-from transformers import T5ForConditionalGeneration, T5Tokenizer
-from transformers import DPRQuestionEncoder, DPRQuestionEncoderTokenizer
-from transformers.models.rag.retrieval_rag import RagRetriever
-from tqdm import tqdm
 import pandas as pd
+import torch
+from tqdm import tqdm
+from transformers import (DPRQuestionEncoder, DPRQuestionEncoderTokenizer,
+                          T5ForConditionalGeneration, T5Tokenizer)
+from transformers.models.rag.retrieval_rag import RagRetriever
 
 from src.evaluation.metrics import compute_metrics
 

@@ -5,8 +5,8 @@
     "exact_match": 26.0,
     "f1": 31.944917582417578,
     "num_examples": 100,
-    "total_time": 26.004692792892456,
-    "questions_per_second": 3.845459771296809
+    "total_time": 53.49954032897949,
+    "questions_per_second": 1.8691749384215224
   },
   "args": {
     "model_name": "google/flan-t5-base",
