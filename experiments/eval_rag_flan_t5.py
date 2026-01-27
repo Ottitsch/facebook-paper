@@ -113,7 +113,8 @@ def format_t5_prompt(question, retrieved_docs):
     """
     Format question and retrieved documents as T5 prompt.
 
-    T5 expects format: "question: Q context: C"
+    Flan-T5 is instruction-tuned, so we use a natural instruction format.
+    Limit context to avoid token overflow while preserving key information.
 
     Args:
         question: Question string
@@ -126,16 +127,17 @@ def format_t5_prompt(question, retrieved_docs):
     contexts = []
     for doc in retrieved_docs:
         if isinstance(doc, dict) and 'text' in doc:
-            contexts.append(doc['text'])
+            # Limit each document to 150 chars to keep prompt manageable
+            text = doc['text'][:150]
+            contexts.append(text)
         elif isinstance(doc, str):
-            contexts.append(doc)
+            contexts.append(doc[:150])
 
-    # Concatenate contexts (limit to avoid token limit)
-    # Use first 512 tokens of each doc max
-    context = " ".join(contexts)
+    # Concatenate contexts (limit to avoid token overflow)
+    context = " ".join(contexts)[:512]  # Hard limit on context
 
-    # T5 format
-    prompt = f"question: {question} context: {context}"
+    # Flan-T5 instruction-tuned format (more natural than "question: Q context: C")
+    prompt = f"Answer the question based on the context.\nContext: {context}\nQuestion: {question}\nAnswer:"
 
     return prompt
 
@@ -288,9 +290,9 @@ def evaluate_flan_t5(model, tokenizer, retriever, question_encoder, question_enc
             prompt = format_t5_prompt(question, docs)
             batch_prompts.append(prompt)
 
-        # Tokenize prompts
+        # Tokenize prompts (leave room for generation)
         inputs = tokenizer(batch_prompts, return_tensors="pt", padding=True,
-                          truncation=True, max_length=1024)
+                          truncation=True, max_length=512)
         inputs = {k: v.to(device) for k, v in inputs.items()}
 
         # Generate (using greedy decoding as per paper for QA tasks)
@@ -298,13 +300,22 @@ def evaluate_flan_t5(model, tokenizer, retriever, question_encoder, question_enc
             generated_ids = model.generate(
                 input_ids=inputs["input_ids"],
                 attention_mask=inputs.get("attention_mask"),
-                max_length=max_length,
+                max_length=max_length + 50,  # Increase generation buffer
                 do_sample=False  # Greedy decoding
             )
 
-        # Decode predictions
+        # Decode predictions and clean up
         batch_preds = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)
-        predictions.extend(batch_preds)
+        # Extract only the answer part (after "Answer:" if present)
+        cleaned_preds = []
+        for pred in batch_preds:
+            if "Answer:" in pred:
+                # Take only the text after the last "Answer:" prompt
+                answer = pred.split("Answer:")[-1].strip()
+            else:
+                answer = pred.strip()
+            cleaned_preds.append(answer)
+        predictions.extend(cleaned_preds)
 
         # Process answers - ensure they're lists
         for ans in answers:

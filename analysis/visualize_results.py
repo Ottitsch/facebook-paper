@@ -5,11 +5,11 @@ Generates plots for presentation and paper.
 """
 
 import json
-import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
 from pathlib import Path
 
+import matplotlib.pyplot as plt
+import pandas as pd
+import seaborn as sns
 
 # Set style
 sns.set_style("whitegrid")
@@ -18,28 +18,52 @@ plt.rcParams['font.size'] = 12
 
 
 def load_all_results():
-    """Load all evaluation results from JSON files."""
+    """Load all evaluation results from JSON files in results/metrics."""
     results_dir = Path(__file__).parent.parent / "results" / "metrics"
-
     results = {}
 
-    # Load baseline RAG-BART results
-    baseline_file = results_dir / "baseline_100samples.json"
-    if baseline_file.exists():
-        with open(baseline_file, 'r') as f:
-            results['RAG-BART\n(baseline)'] = json.load(f)
+    # Get all JSON files
+    json_files = sorted(results_dir.glob("*.json"))
 
-    # Load Flan-T5 results
-    flan_files = {
-        'Flan-T5-small\n(77M)': results_dir / "flan_t5_small_100.json",
-        'Flan-T5-base\n(248M)': results_dir / "flan_t5_base_100.json",
-        'Flan-T5-large\n(4-bit, 494M)': results_dir / "flan_t5_large_4bit_100.json"
-    }
+    for json_file in json_files:
+        try:
+            with open(json_file, 'r') as f:
+                data = json.load(f)
 
-    for name, filepath in flan_files.items():
-        if filepath.exists():
-            with open(filepath, 'r') as f:
-                results[name] = json.load(f)
+            filename = json_file.stem  # Remove .json extension
+
+            # Handle reranker_strategies_100.json specially - extract individual strategies
+            if filename == "reranker_strategies_100":
+                # New format: {strategy: {metrics: {...}}, ...}
+                for strategy in ['basic', 'enhanced', 'diversity']:
+                    if strategy in data:
+                        strategy_name = strategy.capitalize()
+                        results[f'Flan-T5-base +\nReranker ({strategy_name})'] = data[strategy]
+            # Skip files that are already handled or are strategy files
+            elif filename not in ['baseline_100samples', 'baseline_200samples', 'flan_t5_small_100',
+                                  'flan_t5_base_100', 'flan_t5_large_4bit_100', 't5_prompt_100',
+                                  'rag_fusion_results']:
+                # Add any other JSON files with generic naming
+                model_name = filename.replace('_', ' ').replace('100', '').replace('200', '').strip()
+                model_name = model_name.title()
+                results[f'{model_name}'] = data
+            # Handle known files with pretty names
+            elif filename == 'baseline_100samples':
+                results['RAG-BART\n(baseline)'] = data
+            elif filename == 'flan_t5_small_100':
+                results['Flan-T5-small\n(77M)'] = data
+            elif filename == 'flan_t5_base_100':
+                results['Flan-T5-base\n(248M)'] = data
+            elif filename == 'flan_t5_large_4bit_100':
+                results['Flan-T5-large\n(4-bit, 494M)'] = data
+            elif filename == 't5_prompt_100':
+                results['T5 Prompt\nEngineering'] = data
+            elif filename == 'rag_fusion_results':
+                results['RAG Fusion\n(RRF)'] = data
+
+        except (json.JSONDecodeError, KeyError) as e:
+            print(f"Warning: Could not load {json_file}: {e}")
+            continue
 
     return results
 
@@ -59,7 +83,7 @@ def create_accuracy_comparison(results, output_dir):
     x = range(len(models))
     width = 0.35
 
-    fig, ax = plt.subplots(figsize=(12, 6))
+    fig, ax = plt.subplots(figsize=(14, 7))
 
     bars1 = ax.bar([i - width/2 for i in x], em_scores, width, label='Exact Match', alpha=0.8)
     bars2 = ax.bar([i + width/2 for i in x], f1_scores, width, label='F1 Score', alpha=0.8)
@@ -69,7 +93,7 @@ def create_accuracy_comparison(results, output_dir):
     ax.set_title('Accuracy Comparison: EM and F1 Scores\n100 Samples from Natural Questions',
                  fontsize=16, fontweight='bold', pad=20)
     ax.set_xticks(x)
-    ax.set_xticklabels(models, fontsize=11)
+    ax.set_xticklabels(models, fontsize=10, rotation=45, ha='right')
     ax.legend(fontsize=12)
     ax.set_ylim(0, max(max(em_scores), max(f1_scores)) * 1.2)
 
@@ -79,7 +103,7 @@ def create_accuracy_comparison(results, output_dir):
             height = bar.get_height()
             ax.text(bar.get_x() + bar.get_width()/2., height,
                    f'{height:.1f}%',
-                   ha='center', va='bottom', fontsize=10)
+                   ha='center', va='bottom', fontsize=9)
 
     plt.tight_layout()
     output_path = output_dir / 'accuracy_comparison.png'
@@ -105,7 +129,10 @@ def create_speed_vs_accuracy(results, output_dir):
         'RAG-BART\n(baseline)': 515,
         'Flan-T5-small\n(77M)': 77,
         'Flan-T5-base\n(248M)': 248,
-        'Flan-T5-large\n(4-bit, 494M)': 494
+        'Flan-T5-large\n(4-bit, 494M)': 494,
+        'Flan-T5-base +\nReranker (Basic)': 281,
+        'Flan-T5-base +\nReranker (Enhanced)': 281,
+        'Flan-T5-base +\nReranker (Diversity)': 281
     }
     sizes = [param_sizes.get(m, 100) for m in models]
 
@@ -250,6 +277,20 @@ def create_combined_summary(results, output_dir):
     f1_scores = [results[m]['metrics']['f1'] for m in models]
     speeds = [results[m]['metrics']['questions_per_second'] for m in models]
 
+    # Dynamic parameter sizes based on loaded models
+    param_size_map = {
+        'RAG-BART\n(baseline)': 515,
+        'Flan-T5-small\n(77M)': 77,
+        'Flan-T5-base\n(248M)': 248,
+        'Flan-T5-large\n(4-bit, 494M)': 494,
+        'Flan-T5-base +\nReranker (Basic)': 281,
+        'Flan-T5-base +\nReranker (Enhanced)': 281,
+        'Flan-T5-base +\nReranker (Diversity)': 281,
+        'RAG Fusion\n(RRF)': 281,
+        'T5 Prompt\nEngineering': 248
+    }
+    param_sizes = [param_size_map.get(m, 100) for m in models]
+
     # 1. Accuracy comparison
     x = range(len(models))
     width = 0.35
@@ -271,7 +312,6 @@ def create_combined_summary(results, output_dir):
         ax2.text(i, v, f'{v:.2f}', ha='center', va='bottom', fontsize=10)
 
     # 3. Speed vs Accuracy
-    param_sizes = [515, 77, 248, 494]
     scatter = ax3.scatter(speeds, em_scores, s=[s*2 for s in param_sizes],
                          alpha=0.6, c=range(len(models)), cmap='viridis',
                          edgecolors='black', linewidth=2)
