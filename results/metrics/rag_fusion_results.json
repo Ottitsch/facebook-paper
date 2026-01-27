@@ -1,0 +1,24 @@
+{
+  "model_name": "google/flan-t5-base",
+  "type": "rag_fusion",
+  "split": "validation",
+  "metrics": {
+    "exact_match": 22.797783933518005,
+    "f1": 30.256725537493004,
+    "num_examples": 3610,
+    "total_time": 5039.011075496674,
+    "questions_per_second": 0.7164104118672091
+  },
+  "args": {
+    "model_name": "google/flan-t5-base",
+    "split": "validation",
+    "max_samples": null,
+    "batch_size": 1,
+    "n_docs_per_query": 5,
+    "max_length": 50,
+    "output_file": "results/metrics/rag_fusion_results.json",
+    "no_fp16": false,
+    "use_dummy_index": false,
+    "use_4bit": false
+  }
+}
