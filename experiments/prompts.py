@@ -1,6 +1,5 @@
 """
-Prompt templates for RAG experiments.
-Includes multiple prompt engineering strategies to improve answer generation.
+Prompt templates for RAG experiments
 """
 
 

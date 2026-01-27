@@ -38,11 +38,11 @@ def load_all_results():
                 for strategy in ['basic', 'enhanced', 'diversity']:
                     if strategy in data:
                         strategy_name = strategy.capitalize()
-                        results[f'Flan-T5-base +\nReranker ({strategy_name})'] = data[strategy]
+                        results[f'Reranker\n({strategy_name})'] = data[strategy]
             # Skip files that are already handled or are strategy files
             elif filename not in ['baseline_100samples', 'baseline_200samples', 'flan_t5_small_100',
                                   'flan_t5_base_100', 'flan_t5_large_4bit_100', 't5_prompt_100',
-                                  'rag_fusion_results', 'rag_fusion_100']:
+                                  'rag_fusion_results', 'rag_fusion_100', 'flan_t5_base_reranked_100']:
                 # Add any other JSON files with generic naming
                 model_name = filename.replace('_', ' ').replace('100', '').replace('200', '').strip()
                 model_name = model_name.title()
@@ -57,7 +57,9 @@ def load_all_results():
             elif filename == 'flan_t5_large_4bit_100':
                 results['Flan-T5-large\n(4-bit, 494M)'] = data
             elif filename == 't5_prompt_100':
-                results['T5 Prompt\nEngineering'] = data
+                results['T5 Prompt\n(Standard)'] = data
+            elif filename == 'flan_t5_base_reranked_100':
+                results['Flan-T5-base +\nReranker (Enhanced)'] = data
             elif filename == 'rag_fusion_results':
                 results['RAG Fusion\n(RRF, 3610)'] = data
             elif filename == 'rag_fusion_100':
@@ -138,17 +140,28 @@ def create_speed_vs_accuracy(results, output_dir):
     }
     sizes = [param_sizes.get(m, 100) for m in models]
 
-    fig, ax = plt.subplots(figsize=(12, 8))
+    fig, ax = plt.subplots(figsize=(14, 10))
 
-    scatter = ax.scatter(speeds, em_scores, s=[s*2 for s in sizes], alpha=0.6,
-                        c=range(len(models)), cmap='viridis', edgecolors='black', linewidth=2)
+    scatter = ax.scatter(speeds, em_scores, s=[s*2 for s in sizes], alpha=0.7,
+                        c=range(len(models)), cmap='tab20', edgecolors='black', linewidth=2)
 
-    # Add labels for each point
-    for i, model in enumerate(models):
-        ax.annotate(model, (speeds[i], em_scores[i]),
-                   xytext=(10, 10), textcoords='offset points',
-                   fontsize=11, fontweight='bold',
-                   bbox=dict(boxstyle='round,pad=0.5', facecolor='white', alpha=0.7))
+    # Add smart labels with adjustText to avoid overlap
+    try:
+        from adjustText import adjust_text
+        texts = []
+        for i, model in enumerate(models):
+            txt = ax.text(speeds[i], em_scores[i], model, fontsize=12, ha='center',
+                         bbox=dict(boxstyle='round,pad=0.4', facecolor='white', alpha=0.8, edgecolor='gray', linewidth=1.5))
+            texts.append(txt)
+        adjust_text(texts, arrowprops=dict(arrowstyle='->', color='gray', lw=0.8), fontsize=12)
+    except ImportError:
+        for i, model in enumerate(models):
+            offset_x = 0.1 if i % 2 == 0 else -0.1
+            offset_y = 10 if i % 3 < 2 else -10
+            ax.annotate(model, (speeds[i], em_scores[i]),
+                       xytext=(offset_x, offset_y), textcoords='offset points',
+                       fontsize=11, ha='center',
+                       bbox=dict(boxstyle='round,pad=0.4', facecolor='white', alpha=0.8, edgecolor='gray', linewidth=1.5))
 
     ax.set_xlabel('Speed (questions/second)', fontsize=14, fontweight='bold')
     ax.set_ylabel('Exact Match (%)', fontsize=14, fontweight='bold')
@@ -253,7 +266,6 @@ def create_f1_em_gap_analysis(results, output_dir):
     # Add legend
     from matplotlib.patches import Patch
     legend_elements = [
-        Patch(facecolor='red', alpha=0.7, label='No partial matches (all or nothing)'),
         Patch(facecolor='blue', alpha=0.7, label='Generates partial matches')
     ]
     ax.legend(handles=legend_elements, fontsize=11)

@@ -5,10 +5,11 @@ Inherits setup from eval_rag_flan_t5.py but overrides the evaluation loop.
 
 import argparse
 import json
-import time
 import sys
-import torch
+import time
 from pathlib import Path
+
+import torch
 from tqdm import tqdm
 
 # 1. Setup Path to import from sibling files
@@ -18,10 +19,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 # 2. MODULAR IMPORT: Reuse your existing stable code
 # This avoids code duplication for model loading and data processing
 try:
-    from experiments.eval_rag_flan_t5 import (
-        load_flan_t5_with_retriever, 
-        load_natural_questions
-    )
+    from experiments.eval_rag_flan_t5 import (load_flan_t5_with_retriever,
+                                              load_natural_questions)
     from src.evaluation.metrics import compute_metrics
 except ImportError:
     print("Error: Could not import from eval_rag_flan_t5. Make sure you are running from project root.")
@@ -31,20 +30,18 @@ except ImportError:
 # --- NEW EXTENSION LOGIC ---
 
 PROMPT_TEMPLATES = {
-    "standard": "question: {question} context: {context}",
+    "standard": "{context}\n\nQuestion: {question}\n\nAnswer:",
     
     "reasoning": (
-        "Answer the question based on the context below. Explain your reasoning step by step.\n\n"
-        "Context: {context}\n\n"
+        "{context}\n\n"
         "Question: {question}\n\n"
-        "Reasoning & Answer:"
+        "Answer the question above using only the context provided. Provide your answer:"
     ),
     
     "instruction": (
-        "You are a helpful assistant. Use the provided context to answer the user question accurately and conciselyand faithfully.\n\n"
-        "Context: {context}\n\n"
-        "User: {question}\n"
-        "Assistant:"
+        "{context}\n\n"
+        "Q: {question}\n"
+        "A:"
     )
 }
 
@@ -72,57 +69,76 @@ def evaluate_with_prompts(model, tokenizer, retriever, question_encoder, questio
     references = []
     
     print(f"\nRunning Extension: '{prompt_type.upper()}' Prompting")
+    print(f"Evaluating on {len(dataset)} examples...")
     print(f"Retrieving {n_docs} docs per question...")
 
     start_time = time.time()
 
-    for i in tqdm(range(0, len(dataset), batch_size), desc=f"Eval ({prompt_type})"):
-        batch = dataset[i:i+batch_size]
-        
-        # Unpack batch (handles both dict and list format)
-        if isinstance(batch, dict):
-            questions = [batch.get('question', batch.get('query', ''))]
-            answers = [batch.get('answer', batch.get('answers', []))]
-        else:
-            questions = [ex.get('question', ex.get('query', '')) for ex in batch]
-            answers = [ex.get('answer', ex.get('answers', [])) for ex in batch]
+    for i in tqdm(range(0, len(dataset), batch_size), desc="Evaluating", total=int(len(dataset)/batch_size)+1):
+        try:
+            batch = dataset[i:i+batch_size]
+            
+            # Unpack batch (handles both dict and list format)
+            if isinstance(batch, dict):
+                questions = [batch.get('question', batch.get('query', ''))]
+                answers = [batch.get('answer', batch.get('answers', []))]
+            else:
+                questions = [ex.get('question', ex.get('query', '')) for ex in batch]
+                answers = [ex.get('answer', ex.get('answers', [])) for ex in batch]
 
-        # --- RETRIEVAL STEP (Standard) ---
-        batch_prompts = []
-        for question in questions:
-            # 1. Encode Question
-            q_enc = question_encoder_tokenizer(question, return_tensors="pt", padding=True, truncation=True)
+            # --- RETRIEVAL STEP (Standard) ---
+            batch_prompts = []
+            for question in questions:
+                # 1. Encode Question
+                q_enc = question_encoder_tokenizer(question, return_tensors="pt", padding=True, truncation=True)
+                with torch.no_grad():
+                    q_embed = question_encoder(q_enc.input_ids.to(device), attention_mask=q_enc.attention_mask.to(device)).pooler_output
+
+                # 2. Retrieve Docs
+                retrieved = retriever(q_enc.input_ids.to(device), q_embed.cpu().numpy(), n_docs=n_docs, return_tensors="pt")
+                doc_ids = retrieved["doc_ids"][0]
+                docs_dicts = retriever.index.get_doc_dicts(doc_ids)
+                docs = [{"text": doc["text"]} for doc in docs_dicts]
+
+                # 3. FORMAT PROMPT (The Extension Part)
+                prompt = format_custom_prompt(question, docs, prompt_type=prompt_type)
+                batch_prompts.append(prompt)
+
+            # --- GENERATION STEP (Standard) ---
+            inputs = tokenizer(batch_prompts, return_tensors="pt", padding=True, truncation=True, max_length=1024).to(device)
+            
             with torch.no_grad():
-                q_embed = question_encoder(q_enc.input_ids.to(device), attention_mask=q_enc.attention_mask.to(device)).pooler_output
+                generated_ids = model.generate(
+                    **inputs,
+                    max_length=max_length,
+                    do_sample=False # Greedy decoding for reproducibility
+                )
 
-            # 2. Retrieve Docs
-            retrieved = retriever(q_enc.input_ids.to(device), q_embed.cpu().numpy(), n_docs=n_docs, return_tensors="pt")
-            doc_ids = retrieved["doc_ids"][0]
-            docs_dicts = retriever.index.get_doc_dicts(doc_ids)
-            docs = [{"text": doc["text"]} for doc in docs_dicts]
-
-            # 3. FORMAT PROMPT (The Extension Part)
-            prompt = format_custom_prompt(question, docs, prompt_type=prompt_type)
-            batch_prompts.append(prompt)
-
-        # --- GENERATION STEP (Standard) ---
-        inputs = tokenizer(batch_prompts, return_tensors="pt", padding=True, truncation=True, max_length=1024).to(device)
-        
-        with torch.no_grad():
-            generated_ids = model.generate(
-                **inputs,
-                max_length=max_length,
-                do_sample=False # Greedy decoding for reproducibility
-            )
-
-        batch_preds = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)
-        predictions.extend(batch_preds)
-        
-        # Standardize answers for metric computation
-        for ans in answers:
-            if isinstance(ans, str): references.append([ans])
-            elif isinstance(ans, list): references.append(ans if ans else [''])
-            else: references.append([''])
+            batch_preds = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)
+            
+            # Extract only the answer part (after "Answer:" if present)
+            cleaned_preds = []
+            for pred in batch_preds:
+                if "Answer:" in pred:
+                    # Take only the text after the last "Answer:" prompt
+                    answer = pred.split("Answer:")[-1].strip()
+                else:
+                    answer = pred.strip()
+                cleaned_preds.append(answer)
+            predictions.extend(cleaned_preds)
+            
+            # Standardize answers for metric computation
+            for ans in answers:
+                if isinstance(ans, str): references.append([ans])
+                elif isinstance(ans, list): references.append(ans if ans else [''])
+                else: references.append([''])
+        except Exception as e:
+            print(f"\nError processing batch at index {i}: {e}")
+            continue
+        except Exception as e:
+            print(f"\nError processing batch at index {i}: {e}")
+            print(f"Continuing with {len(predictions)} samples collected so far...")
+            continue
 
     # Compute Metrics
     elapsed = time.time() - start_time
@@ -155,11 +171,11 @@ def main():
         n_docs=args.n_docs,
         use_4bit=args.use_4bit
     )
-    print("      ✓ Model and retriever loaded")
+    print("      [OK] Model and retriever loaded")
     
     print("[2/2] Loading Natural Questions dataset...")
     dataset = load_natural_questions(split="validation", max_samples=args.max_samples)
-    print(f"      ✓ Dataset loaded ({len(dataset)} samples)")
+    print(f"      [OK] Dataset loaded ({len(dataset)} samples)")
     print("="*50 + "\n")
 
     # 2. RUN: Execute the modified evaluation loop
@@ -183,7 +199,7 @@ def main():
     print(f"Exact Match: {metrics['exact_match']:.2f}%")
     print(f"F1 Score:    {metrics['f1']:.2f}%")
     print("="*50)
-    print("✓ Evaluation completed successfully\n")
+    print("[OK] Evaluation completed successfully\n")
 
     if args.output_file:
         Path(args.output_file).parent.mkdir(parents=True, exist_ok=True)

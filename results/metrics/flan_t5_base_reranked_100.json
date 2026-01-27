@@ -1,0 +1,26 @@
+{
+  "model_name": "google/flan-t5-base",
+  "retrieval_k": 50,
+  "rerank_top_k": 15,
+  "metrics": {
+    "exact_match": 26.0,
+    "f1": 32.95935960591133,
+    "num_examples": 100,
+    "total_time": 122.3454520702362,
+    "questions_per_second": 0.8173577219902861,
+    "avg_retrieval_time_ms": 305.78643560409546,
+    "avg_reranking_time_ms": 426.356520652771
+  },
+  "args": {
+    "model_name": "google/flan-t5-base",
+    "split": "validation",
+    "max_samples": 100,
+    "batch_size": 4,
+    "retrieval_k": 50,
+    "rerank_top_k": 15,
+    "max_length": 50,
+    "output_file": "results/metrics/flan_t5_base_reranked_100.json",
+    "no_fp16": false,
+    "use_4bit": false
+  }
+}
