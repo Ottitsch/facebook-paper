@@ -263,12 +263,13 @@ def run_reranker_strategies(max_samples: int = 100) -> bool:
             
             # Store results
             results_by_strategy[strategy] = {
-                'exact_match': metrics['exact_match'],
-                'f1': metrics['f1'],
-                'speed': metrics['questions_per_second'],
-                'total_time': metrics['total_time'],
-                'avg_retrieval_time_ms': metrics['avg_retrieval_time_ms'],
-                'avg_reranking_time_ms': metrics['avg_reranking_time_ms']
+                'metrics': {
+                    'exact_match': metrics['exact_match'],
+                    'f1': metrics['f1'],
+                    'questions_per_second': metrics['questions_per_second'],
+                    'total_time': metrics['total_time'],
+                    'num_examples': max_samples
+                }
             }
             
             print(f"{strategy.upper()} Results:")
@@ -277,12 +278,9 @@ def run_reranker_strategies(max_samples: int = 100) -> bool:
             print(f"  Speed: {metrics['questions_per_second']:.2f} q/s")
             print(f"  Total Time: {metrics['total_time']:.1f}s")
         
-        # Save JSON results in same format as other metrics
-        json_results = {
-            'model': 'google/flan-t5-base',
-            'reranker_strategies': results_by_strategy,
-            'timestamp': datetime.now().isoformat()
-        }
+        # Save JSON results in standard format matching other metric files
+        # Structure: {strategy: {metrics: {...}}, ...}
+        json_results = results_by_strategy
         
         json_path = Path(f"results/metrics/reranker_strategies_{max_samples}.json")
         json_path.parent.mkdir(parents=True, exist_ok=True)

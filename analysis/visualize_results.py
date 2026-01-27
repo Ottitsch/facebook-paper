@@ -42,7 +42,7 @@ def load_all_results():
             # Skip files that are already handled or are strategy files
             elif filename not in ['baseline_100samples', 'baseline_200samples', 'flan_t5_small_100',
                                   'flan_t5_base_100', 'flan_t5_large_4bit_100', 't5_prompt_100',
-                                  'rag_fusion_results']:
+                                  'rag_fusion_results', 'rag_fusion_100']:
                 # Add any other JSON files with generic naming
                 model_name = filename.replace('_', ' ').replace('100', '').replace('200', '').strip()
                 model_name = model_name.title()
@@ -58,7 +58,7 @@ def load_all_results():
                 results['Flan-T5-large\n(4-bit, 494M)'] = data
             elif filename == 't5_prompt_100':
                 results['T5 Prompt\nEngineering'] = data
-            elif filename == 'rag_fusion_results':
+            elif filename == 'rag_fusion_results' or filename == 'rag_fusion_100':
                 results['RAG Fusion\n(RRF)'] = data
 
         except (json.JSONDecodeError, KeyError) as e:
@@ -227,7 +227,7 @@ def create_f1_em_gap_analysis(results, output_dir):
     f1_scores = [results[m]['metrics']['f1'] for m in models]
     gaps = [f1 - em for f1, em in zip(f1_scores, em_scores)]
 
-    fig, ax = plt.subplots(figsize=(12, 6))
+    fig, ax = plt.subplots(figsize=(14, 8))
 
     colors = ['red' if gap < 1 else 'blue' for gap in gaps]
     bars = ax.bar(models, gaps, color=colors, alpha=0.7, edgecolor='black', linewidth=2)
@@ -236,6 +236,9 @@ def create_f1_em_gap_analysis(results, output_dir):
     ax.set_title('F1 vs Exact Match Gap Analysis\nHigher gap = More partial matches',
                  fontsize=16, fontweight='bold', pad=20)
     ax.axhline(y=0, color='black', linestyle='-', linewidth=1)
+
+    # Rotate and align x-axis labels to prevent overlap
+    plt.xticks(rotation=45, ha='right', fontsize=11)
 
     # Add value labels
     for bar in bars:
