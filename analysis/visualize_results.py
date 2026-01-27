@@ -58,8 +58,10 @@ def load_all_results():
                 results['Flan-T5-large\n(4-bit, 494M)'] = data
             elif filename == 't5_prompt_100':
                 results['T5 Prompt\nEngineering'] = data
-            elif filename == 'rag_fusion_results' or filename == 'rag_fusion_100':
-                results['RAG Fusion\n(RRF)'] = data
+            elif filename == 'rag_fusion_results':
+                results['RAG Fusion\n(RRF, 3610)'] = data
+            elif filename == 'rag_fusion_100':
+                results['RAG Fusion\n(RRF, 100)'] = data
 
         except (json.JSONDecodeError, KeyError) as e:
             print(f"Warning: Could not load {json_file}: {e}")
