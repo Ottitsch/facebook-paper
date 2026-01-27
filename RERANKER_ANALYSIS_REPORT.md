@@ -217,9 +217,7 @@ The diversity approach is clever, but sometimes it picks less-relevant docs just
 
 Enhanced sits in the sweet spot.
 
----
-
-## Technical Details (If You Care)
+---´
 
 **Cross-Encoder Model:** MS-MARCO-MiniLM-L-12-v2 (33.4M params)
 
@@ -237,17 +235,3 @@ Enhanced sits in the sweet spot.
 **Hardware:** NVIDIA GTX 1050 Ti, Python 3.11, PyTorch 2.7.1
 
 ---
-
-## Next Steps
-
-1. **Fix the T5 Prompt Engineering approach** — 0% accuracy means something's wrong with the prompt format
-2. **Test on a bigger dataset** — 100 samples is a decent start, but more data would give us confidence in these results
-3. **Try domain-specific fine-tuning** — these models might do better if we fine-tune them on our specific use case
-4. **Experiment with different retrieval K values** — we currently retrieve 50 docs, but 30 or 100 might work better
-5. **Compare computational cost** — Diversity reranker is good but slow; maybe we can optimize the diversity scoring
-
----
-
-**Testing completed:** January 22, 2026  
-**Test set:** 100 questions from Natural Questions validation split  
-**Status:** All working except T5 Prompt Engineering
