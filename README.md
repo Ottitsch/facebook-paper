@@ -178,9 +178,6 @@ facebook-paper/
 ├── scripts/
 │   └── download_nq_hf_hub.py          # Dataset download
 │
-├── presentation/
-│   └── PRESENTATION_OUTLINE.md         # 20-minute talk outline
-│
 ├── data/                               # Dataset cache
 │   └── datasets--google-research-datasets--nq_open/
 │
