@@ -17,7 +17,6 @@ This project:
 - [PROJECT_SUMMARY.md](PROJECT_SUMMARY.md) - Executive summary with complete deliverables
 - [SETUP_NOTES.md](SETUP_NOTES.md) - Comprehensive environment setup guide
 - [RERANKER_ANALYSIS_REPORT.md](RERANKER_ANALYSIS_REPORT.md) - Detailed reranking strategy analysis
-- [PRESENTATION_OUTLINE.md](presentation/PRESENTATION_OUTLINE.md) - 20-minute presentation outline
 
 ---
 
